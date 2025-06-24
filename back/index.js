@@ -4,6 +4,9 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const { Server } = require('socket.io');
 
+// Optional: Load .env file if exists
+require('dotenv').config();
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -16,27 +19,35 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// MongoDB connection
+// ✅ MongoDB connection
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/livechat';
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log('MongoDB connected'))
-    .catch(err => console.error('MongoDB connection error:', err));
 
-// Message schema
+mongoose.connect(MONGO_URI)
+    .then(() => console.log('✅ MongoDB connected'))
+    .catch(err => {
+        console.error('❌ MongoDB connection error:', err.message);
+        process.exit(1); // Exit process if DB fails
+    });
+
+// 💬 Message schema
 const messageSchema = new mongoose.Schema({
     username: String,
     content: String,
     createdAt: { type: Date, default: Date.now }
 });
+
 const Message = mongoose.model('Message', messageSchema);
 
-// REST endpoint to get messages
+// 🌐 API routes
 app.get('/messages', async (req, res) => {
-    const messages = await Message.find().sort({ createdAt: 1 }).limit(100);
-    res.json(messages);
+    try {
+        const messages = await Message.find().sort({ createdAt: 1 }).limit(100);
+        res.json(messages);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// REST endpoint to delete a message by ID
 app.delete('/messages/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -47,28 +58,35 @@ app.delete('/messages/:id', async (req, res) => {
     }
 });
 
-// Socket.IO for live chat
+// ⚡ Socket.IO for real-time chat
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    console.log('🔌 User connected:', socket.id);
 
     socket.on('chat message', async (msg) => {
-        const message = new Message(msg);
-        await message.save();
-        io.emit('chat message', message);
+        try {
+            const message = new Message(msg);
+            await message.save();
+            io.emit('chat message', message);
+        } catch (err) {
+            console.error('💥 Error saving message:', err.message);
+        }
     });
 
-    // Handle message deletion
     socket.on('delete message', async (id) => {
-        await Message.findByIdAndDelete(id);
-        io.emit('delete message', id);
+        try {
+            await Message.findByIdAndDelete(id);
+            io.emit('delete message', id);
+        } catch (err) {
+            console.error('💥 Error deleting message:', err.message);
+        }
     });
 
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+    socket.on('disconnect', () => { console.log('🚪 User disconnected:', socket.id);
     });
 });
 
+// ✅ Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-}); 
+    console.log(`🚀 Server running on port ${PORT}`);
+});
