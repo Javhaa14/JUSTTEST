@@ -1,27 +1,15 @@
 const express = require("express");
 const http = require("http");
 const mongoose = require("mongoose");
+const { ApolloServer, gql } = require("apollo-server-express");
 const cors = require("cors");
-const { Server } = require("socket.io");
-
-// Optional: Load .env file if exists
 require("dotenv").config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
-});
 
-app.use(cors());
-app.use(express.json());
-
-// ✅ MongoDB connection
+// MongoDB connection
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/livechat";
-
 mongoose
   .connect(MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
@@ -44,117 +32,124 @@ const userSchema = new mongoose.Schema({
   username: { type: String, unique: true },
   password: String,
 });
+
 const User = mongoose.model("User", userSchema);
 
-// �� Allowed usernames
-// const ALLOWED_USERNAMES = ['Alice', 'Bob'];
-
-// 🌐 API routes
-app.get("/messages", async (req, res) => {
-  try {
-    const messages = await Message.find().sort({ createdAt: 1 }).limit(100);
-    res.json(messages);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+// GraphQL Schema Definition
+const typeDefs = gql`
+  type Message {
+    id: ID!
+    username: String!
+    content: String!
+    createdAt: String!
   }
+
+  type User {
+    id: ID!
+    username: String!
+  }
+
+  type Query {
+    messages: [Message]
+    users: [User]
+  }
+
+  type Mutation {
+    addMessage(username: String!, content: String!): Message
+    deleteMessage(id: ID!): Boolean
+    register(username: String!, password: String!): User
+    login(username: String!, password: String!): String # Returns JWT token
+  }
+`;
+
+// GraphQL Resolvers
+const resolvers = {
+  Query: {
+    messages: async () => {
+      try {
+        return await Message.find().sort({ createdAt: 1 }).limit(100);
+      } catch (err) {
+        throw new Error(err.message);
+      }
+    },
+    users: async () => {
+      try {
+        return await User.find();
+      } catch (err) {
+        throw new Error(err.message);
+      }
+    },
+  },
+  Mutation: {
+    addMessage: async (_, { username, content }) => {
+      try {
+        const message = new Message({ username, content });
+        await message.save();
+        return message;
+      } catch (err) {
+        throw new Error(err.message);
+      }
+    },
+    deleteMessage: async (_, { id }) => {
+      try {
+        const result = await Message.findByIdAndDelete(id);
+        return result !== null;
+      } catch (err) {
+        throw new Error(err.message);
+      }
+    },
+    register: async (_, { username, password }) => {
+      try {
+        const existing = await User.findOne({ username });
+        if (existing) {
+          throw new Error("Username already exists");
+        }
+        const user = new User({ username, password });
+        await user.save();
+        return user;
+      } catch (err) {
+        throw new Error(err.message);
+      }
+    },
+    login: async (_, { username, password }) => {
+      try {
+        const user = await User.findOne({ username });
+        if (!user) {
+          throw new Error("Invalid credentials");
+        }
+        const isPasswordValid = password === user.password; // Simplified for now
+        if (!isPasswordValid) {
+          throw new Error("Invalid credentials");
+        }
+
+        // Generate JWT token
+        const token = "your_jwt_token"; // This should be generated properly with JWT
+        return token;
+      } catch (err) {
+        throw new Error(err.message);
+      }
+    },
+  },
+};
+
+// Create Apollo Server instance
+const apolloServer = new ApolloServer({
+  typeDefs,
+  resolvers,
 });
 
-app.delete("/messages/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    await Message.findByIdAndDelete(id);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+async function startServer() {
+  await apolloServer.start(); // Start Apollo Server
 
-// 📝 Register endpoint
-app.post("/register", async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: "Username and password required" });
-  }
-  try {
-    // Prevent duplicate registration
-    const existing = await User.findOne({ username });
-    if (existing) {
-      return res.status(409).json({ error: "Username already registered" });
-    }
-    const user = new User({ username, password });
-    await user.save();
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+  apolloServer.applyMiddleware({ app, path: "/graphql" }); // Apply middleware after the server is started
+  app.use(cors());
+  app.use(express.json());
 
-// 🔑 Login endpoint
-app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: "Username and password required" });
-  }
-  try {
-    const user = await User.findOne({ username });
-    if (!user || user.password !== password) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Online users tracking
-const onlineUsers = {};
-
-// ⚡ Socket.IO for real-time chat
-io.on("connection", (socket) => {
-  console.log("🔌 User connected:", socket.id);
-
-  // User login event to track online users
-  socket.on("user online", (username) => {
-    onlineUsers[socket.id] = username;
-    io.emit("online users", Object.values(onlineUsers));
+  // Start the Express server
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}/graphql`);
   });
+}
 
-  // User disconnects
-  socket.on("disconnect", () => {
-    delete onlineUsers[socket.id];
-    io.emit("online users", Object.values(onlineUsers));
-    console.log("🚪 User disconnected:", socket.id);
-  });
-
-  // Join private room
-  socket.on("join room", (roomId) => {
-    socket.join(roomId);
-  });
-
-  // Private chat message
-  socket.on("private message", async ({ roomId, msg }) => {
-    try {
-      const message = new Message(msg);
-      await message.save();
-      io.to(roomId).emit("private message", message);
-    } catch (err) {
-      console.error("💥 Error saving message:", err.message);
-    }
-  });
-
-  // Delete message (optional, for private rooms)
-  socket.on("delete message", async (id) => {
-    try {
-      await Message.findByIdAndDelete(id);
-      io.emit("delete message", id);
-    } catch (err) {
-      console.error("💥 Error deleting message:", err.message);
-    }
-  });
-});
-
-// ✅ Start server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+startServer(); // Call the async function to start the server
