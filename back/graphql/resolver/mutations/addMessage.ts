@@ -3,10 +3,11 @@ import { Usermodel } from "../../schemas/mongoose/user";
 
 export const addMessage = async (_, { username, content }) => {
   try {
-    const user = Usermodel.findOne({ username });
+    const user = await Usermodel.findOne({ username });
     if (!user) {
       throw new Error("User not found");
     }
+
     const message = new Messagemodel({ username, content });
     await message.save();
     return message;
