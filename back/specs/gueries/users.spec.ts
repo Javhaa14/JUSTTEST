@@ -15,7 +15,7 @@ describe("users resolver", () => {
   });
 
   it("returns list of users", async () => {
-    const mockUsers = [{ username: "user1" }, { username: "user2" }];
+    const mockUsers = [{ email: "user1" }, { email: "user2" }];
     mockFind.mockResolvedValue(mockUsers);
 
     const result = await users();

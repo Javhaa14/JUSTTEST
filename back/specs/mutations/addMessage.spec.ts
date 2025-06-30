@@ -25,50 +25,50 @@ describe("addMessage resolver", () => {
     mockFindOne.mockResolvedValue(null);
 
     await expect(
-      addMessage(null, { username: "nouser", content: "Hello" })
+      addMessage(null, { email: "nouser", content: "Hello" })
     ).rejects.toThrow("User not found");
 
-    expect(mockFindOne).toHaveBeenCalledWith({ username: "nouser" });
+    expect(mockFindOne).toHaveBeenCalledWith({ email: "nouser" });
   });
 
   it("creates and saves a message if user is found", async () => {
-    mockFindOne.mockResolvedValue({ username: "user1" });
+    mockFindOne.mockResolvedValue({ email: "user1" });
 
     // Mock Messagemodel constructor to return object with .save
     (Messagemodel as unknown as jest.Mock).mockImplementation(() => ({
       save: mockSave,
-      username: "user1",
+      email: "user1",
       content: "Hello",
     }));
 
     mockSave.mockResolvedValue(true);
 
     const result = await addMessage(null, {
-      username: "user1",
+      email: "user1",
       content: "Hello",
     });
 
-    expect(mockFindOne).toHaveBeenCalledWith({ username: "user1" });
+    expect(mockFindOne).toHaveBeenCalledWith({ email: "user1" });
     expect(Messagemodel).toHaveBeenCalledWith({
-      username: "user1",
+      email: "user1",
       content: "Hello",
     });
     expect(mockSave).toHaveBeenCalled();
     expect(result).toMatchObject({
-      username: "user1",
+      email: "user1",
       content: "Hello",
     });
   });
 
   it("throws error if message save fails", async () => {
-    mockFindOne.mockResolvedValue({ username: "user1" });
+    mockFindOne.mockResolvedValue({ email: "user1" });
 
     (Messagemodel as unknown as jest.Mock).mockImplementation(() => ({
       save: jest.fn().mockRejectedValue(new Error("Save failed")),
     }));
 
     await expect(
-      addMessage(null, { username: "user1", content: "Hello" })
+      addMessage(null, { email: "user1", content: "Hello" })
     ).rejects.toThrow("Save failed");
   });
 });

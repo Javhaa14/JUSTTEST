@@ -2,16 +2,16 @@ import { Usermodel } from "../../schemas/mongoose/user";
 
 // Define the argument shape
 interface LoginArgs {
-  username: string;
+  email: string;
   password: string;
 }
 
 // Return type: you can return a token string, or define a more complex object type
 export const login = async (_: unknown, args: LoginArgs): Promise<string> => {
   try {
-    const { username, password } = args;
+    const { email, password } = args;
 
-    const user = await Usermodel.findOne({ username });
+    const user = await Usermodel.findOne({ email });
     if (!user) {
       throw new Error("Invalid credentials");
     }

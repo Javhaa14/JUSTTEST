@@ -3,7 +3,7 @@ import { Usermodel } from "../../schemas/mongoose/user";
 
 // Define the arguments for the resolver
 interface AddMessageArgs {
-  username: string;
+  email: string;
   content: string;
 }
 
@@ -13,14 +13,14 @@ export const addMessage = async (
   args: AddMessageArgs
 ): Promise<typeof Messagemodel.prototype> => {
   try {
-    const { username, content } = args;
+    const { email, content } = args;
 
-    const user = await Usermodel.findOne({ username });
+    const user = await Usermodel.findOne({ email });
     if (!user) {
       throw new Error("User not found");
     }
 
-    const message = new Messagemodel({ username, content });
+    const message = new Messagemodel({ email, content });
     await message.save();
     return message;
   } catch (err) {

@@ -1,29 +1,40 @@
-import { Usermodel } from "../../schemas/mongoose/user";
+import bcrypt from "bcryptjs"; // Add bcrypt for password hashing
+import { Usermodel } from "../../schemas/mongoose/user"; // Assuming Usermodel is your mongoose model
 
 // Define the argument shape
 interface RegisterArgs {
-  username: string;
+  email: string;
   password: string;
 }
 
 export const register = async (
   _: unknown,
   args: RegisterArgs
-): Promise<typeof Usermodel.prototype> => {
+): Promise<Pick<typeof Usermodel.prototype, "email">> => {
+  // Only return the email of the user
   try {
-    const { username, password } = args;
+    const { email, password } = args;
 
-    const existing = await Usermodel.findOne({ username });
+    // Check if the user already exists
+    const existing = await Usermodel.findOne({ email });
     if (existing) {
-      throw new Error("Username already exists");
+      throw new Error("Email already exists");
     }
 
-    const user = new Usermodel({ username, password });
+    // Hash the password before saving
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create a new user instance
+    const user = new Usermodel({ email, password: hashedPassword });
+
+    // Save the user to the database
     const savedUser = await user.save();
-    return savedUser;
+
+    // Return only the necessary information (e.g., email)
+    return { email: savedUser.email };
   } catch (err) {
     if (err instanceof Error) {
-      throw new Error(err.message);
+      throw new Error(err.message); // Throw the error message if it's an instance of Error
     }
     throw new Error("Unknown error occurred during registration");
   }

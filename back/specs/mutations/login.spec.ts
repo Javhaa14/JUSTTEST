@@ -23,45 +23,45 @@ describe("login resolver unit tests", () => {
     mockFindOne.mockResolvedValue(null); // simulate no user found
 
     await expect(
-      login(null, { username: "nouser", password: "pass" })
+      login(null, { email: "nouser", password: "pass" })
     ).rejects.toThrow("Invalid credentials");
 
-    expect(mockFindOne).toHaveBeenCalledWith({ username: "nouser" });
+    expect(mockFindOne).toHaveBeenCalledWith({ email: "nouser" });
   });
 
   it("throws error if password is incorrect", async () => {
     mockFindOne.mockResolvedValue({
-      username: "user1",
+      email: "user1",
       password: "correctpass",
     });
 
     await expect(
-      login(null, { username: "user1", password: "wrongpass" })
+      login(null, { email: "user1", password: "wrongpass" })
     ).rejects.toThrow("Invalid credentials");
 
-    expect(mockFindOne).toHaveBeenCalledWith({ username: "user1" });
+    expect(mockFindOne).toHaveBeenCalledWith({ email: "user1" });
   });
 
-  it("returns token if username and password are correct", async () => {
+  it("returns token if email and password are correct", async () => {
     mockFindOne.mockResolvedValue({
-      username: "user1",
+      email: "user1",
       password: "correctpass",
     });
 
     const token = await login(null, {
-      username: "user1",
+      email: "user1",
       password: "correctpass",
     });
 
     expect(token).toBe("your_jwt_token");
-    expect(mockFindOne).toHaveBeenCalledWith({ username: "user1" });
+    expect(mockFindOne).toHaveBeenCalledWith({ email: "user1" });
   });
 
   it("throws error if findOne throws an error", async () => {
     mockFindOne.mockRejectedValue(new Error("Database failure"));
 
     await expect(
-      login(null, { username: "user1", password: "pass" })
+      login(null, { email: "user1", password: "pass" })
     ).rejects.toThrow("Database failure");
   });
 });

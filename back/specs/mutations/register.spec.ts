@@ -27,24 +27,24 @@ describe("register resolver unit tests", () => {
     }));
   });
 
-  it("throws error if username exists", async () => {
-    mockFindOne.mockResolvedValue({ username: "existingUser" });
+  it("throws error if email exists", async () => {
+    mockFindOne.mockResolvedValue({ email: "existingUser" });
 
     await expect(
-      register(null, { username: "existingUser", password: "pass" })
-    ).rejects.toThrow("Username already exists");
+      register(null, { email: "existingUser", password: "pass" })
+    ).rejects.toThrow("email already exists");
 
-    expect(mockFindOne).toHaveBeenCalledWith({ username: "existingUser" });
+    expect(mockFindOne).toHaveBeenCalledWith({ email: "existingUser" });
   });
 
-  it("creates and returns user if username does not exist", async () => {
+  it("creates and returns user if email does not exist", async () => {
     mockFindOne.mockResolvedValue(null);
-    const fakeUser = { username: "newUser", password: "pass" };
+    const fakeUser = { email: "newUser", password: "pass" };
     mockSave.mockResolvedValue(fakeUser);
 
     const result = await register(null, fakeUser);
 
-    expect(mockFindOne).toHaveBeenCalledWith({ username: "newUser" });
+    expect(mockFindOne).toHaveBeenCalledWith({ email: "newUser" });
     expect(Usermodel).toHaveBeenCalledWith(fakeUser);
     expect(mockSave).toHaveBeenCalled();
     expect(result).toEqual(fakeUser);
@@ -55,7 +55,7 @@ describe("register resolver unit tests", () => {
     mockSave.mockRejectedValue(new Error("Save failed"));
 
     await expect(
-      register(null, { username: "newUser", password: "pass" })
+      register(null, { email: "newUser", password: "pass" })
     ).rejects.toThrow("Save failed");
   });
 });

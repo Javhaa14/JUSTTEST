@@ -6,7 +6,7 @@ const SOCKET_URL = "http://localhost:5000"; // Change if backend runs elsewhere
 
 type Message = {
   _id: string;
-  username: string;
+  email: string;
   content: string;
   createdAt?: string;
 };
@@ -14,7 +14,7 @@ type Message = {
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [loginMode, setLoginMode] = useState<"login" | "register">("login");
@@ -26,7 +26,7 @@ export default function Home() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [userNotifs, setUserNotifs] = useState<{ [user: string]: number }>({});
   const socketRef = useRef<Socket | null>(null);
-  const usernameRef = useRef("");
+  const emailRef = useRef("");
   const openRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -36,8 +36,8 @@ export default function Home() {
   }
 
   useEffect(() => {
-    usernameRef.current = username;
-  }, [username]);
+    emailRef.current = email;
+  }, [email]);
 
   useEffect(() => {
     openRef.current = open;
@@ -48,19 +48,19 @@ export default function Home() {
     // Connect to socket
     socketRef.current = io(SOCKET_URL);
     // Announce online
-    socketRef.current.emit("user online", username);
+    socketRef.current.emit("user online", email);
     // Listen for online users
     socketRef.current.on("online users", (users: string[]) => {
-      setOnlineUsers(users.filter((u) => u !== username));
+      setOnlineUsers(users.filter((u) => u !== email));
     });
     // Listen for private messages
     socketRef.current.on("private message", (msg: Message) => {
       setMessages((prev) => [...prev, msg]);
       // If not in the room, increment notif for sender
-      if (!openRef.current || !selectedUser || msg.username !== selectedUser) {
+      if (!openRef.current || !selectedUser || msg.email !== selectedUser) {
         setUserNotifs((prev) => ({
           ...prev,
-          [msg.username]: (prev[msg.username] || 0) + 1,
+          [msg.email]: (prev[msg.email] || 0) + 1,
         }));
       }
     });
@@ -72,19 +72,19 @@ export default function Home() {
       socketRef.current?.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loggedIn, username, selectedUser]);
+  }, [loggedIn, email, selectedUser]);
 
   // Join room and fetch messages when selectedUser changes
   useEffect(() => {
     if (!selectedUser || !socketRef.current) return;
-    const room = getRoomId(username, selectedUser);
+    const room = getRoomId(email, selectedUser);
     setRoomId(room);
     setMessages([]); // clear previous messages
     socketRef.current.emit("join room", room);
     // Optionally, fetch previous messages for this room from backend (not implemented here)
     // Reset notif count for this user
     setUserNotifs((prev) => ({ ...prev, [selectedUser]: 0 }));
-  }, [selectedUser, username]);
+  }, [selectedUser, email]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -95,8 +95,8 @@ export default function Home() {
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !username.trim() || !roomId) return;
-    const msg = { username, content: input };
+    if (!input.trim() || !email.trim() || !roomId) return;
+    const msg = { email, content: input };
     socketRef.current?.emit("private message", { roomId, msg });
     setInput("");
   };
@@ -108,29 +108,62 @@ export default function Home() {
   };
 
   // Handle login/register
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    if (!username.trim() || !password.trim()) {
-      setError("Username and password required");
+const handleAuth = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError("");
+
+  if (!email.trim() || !password.trim()) {
+    setError("email and password required");
+    return;
+  }
+
+  const query =
+    loginMode === "login"
+      ? `
+        mutation Login($email: String!, $password: String!) {
+          login(email: $email, password: $password)
+        }
+      `
+      : `
+        mutation Register($email: String!, $password: String!) {
+          register(email: $email, password: $password) {
+            token
+            user {
+              email
+            }
+          }
+        }
+      `;
+
+  try {
+    const res = await fetch(`${SOCKET_URL}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query,
+        variables: { email, password },
+      }),
+    });
+
+    const json = await res.json();
+
+    if (json.errors) {
+      setError(json.errors[0].message || "GraphQL error");
       return;
     }
-    try {
-      const res = await fetch(`${SOCKET_URL}/${loginMode}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Unknown error");
-        return;
-      }
-      setLoggedIn(true);
-    } catch (err) {
-      setError("Network error");
-    }
-  };
+
+    const token = loginMode === "login" ? json.data.login : json.data.register.token;
+
+    // Optionally save token
+    localStorage.setItem("token", token);
+
+    setLoggedIn(true);
+  } catch (err) {
+    setError("Network error");
+  }
+};
+
+
 
   if (!loggedIn) {
     return (
@@ -140,9 +173,9 @@ export default function Home() {
         </div>
         <form onSubmit={handleAuth} className="space-y-4">
           <input
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            placeholder="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none"
           />
           <input
@@ -222,7 +255,7 @@ export default function Home() {
           <div className="flex-1 overflow-y-auto px-4 py-4 bg-gray-100 space-y-2">
             {selectedUser ? (
               messages.map((msg) => {
-                const isSelf = msg.username === username;
+                const isSelf = msg.email === email;
                 return (
                   <div
                     key={msg._id}
@@ -235,7 +268,7 @@ export default function Home() {
                           ? "bg-blue-600 text-white rounded-br-md"
                           : "bg-gray-200 text-gray-900 rounded-bl-md"
                       }`}>
-                      <span className="font-medium">{msg.username}</span>
+                      <span className="font-medium">{msg.email}</span>
                       <div className="text-sm">{msg.content}</div>
                       {isSelf && (
                         <button

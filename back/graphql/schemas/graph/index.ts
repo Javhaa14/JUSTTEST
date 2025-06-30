@@ -4,14 +4,14 @@ import { gql } from "apollo-server-express";
 export const typeDefs = gql`
   type Message {
     id: ID!
-    username: String!
+    email: String!
     content: String!
     createdAt: String!
   }
 
   type User {
     id: ID!
-    username: String!
+    email: String!
   }
 
   type Query {
@@ -20,9 +20,9 @@ export const typeDefs = gql`
   }
 
   type Mutation {
-    addMessage(username: String!, content: String!): Message
+    addMessage(email: String!, content: String!): Message
     deleteMessage(id: ID!): Boolean
-    register(username: String!, password: String!): User
-    login(username: String!, password: String!): String # Returns JWT token
+    register(email: String!, password: String!): User
+    login(email: String!, password: String!): String # Returns JWT token
   }
 `;
